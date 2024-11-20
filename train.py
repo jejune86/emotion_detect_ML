@@ -9,8 +9,9 @@ from sklearn.preprocessing import LabelEncoder
 from keras import layers, models
 import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score
-from data_loader import load_data
+from data_loader import load_train_data
 from data_loader import NUM_CLASSES, DEFAULT_SIZE
+
 
 
 
@@ -19,7 +20,7 @@ BATCH_SIZE = 64
 EPOCHS = 30
 
 # Data Load
-train_dataset, val_dataset = load_data("train", img_size=INPUT_SIZE, gray=True, normalization=True, flatten=False, augment=False, batch_size=BATCH_SIZE)
+train_dataset, val_dataset = load_train_data(img_size=INPUT_SIZE, gray=True, normalization=True, flatten=False, batch_size=BATCH_SIZE)
 
 # 모델에 따라 추가적인 preprocessing 필요한 경우 있음 
 # def preprocess_with_densenet(image, label):
@@ -37,21 +38,22 @@ train_dataset, val_dataset = load_data("train", img_size=INPUT_SIZE, gray=True, 
 # 모델 정의
 model = models.Sequential([
     # ex)
-    # layers.Conv2D(32, (3, 3), activation='relu', input_shape=(INPUT_SIZE, INPUT_SIZE, 1)),
-    # layers.MaxPooling2D((2, 2)),
+    #RGB 사용할 경우 gray=False, input_shape=(INPUT_SIZE, INPUT_SIZE, 3))
+    layers.Conv2D(32, (3, 3), activation='relu', input_shape=(INPUT_SIZE, INPUT_SIZE, 1)), 
+    layers.MaxPooling2D((2, 2)),
     
-    # layers.Conv2D(64, (3, 3), activation='relu'),
-    # layers.MaxPooling2D((2, 2)),
+    layers.Conv2D(64, (3, 3), activation='relu'),
+    layers.MaxPooling2D((2, 2)),
     
-    # layers.Conv2D(128, (3, 3), activation='relu'),
-    # layers.MaxPooling2D((2, 2)),
+    layers.Conv2D(128, (3, 3), activation='relu'),
+    layers.MaxPooling2D((2, 2)),
     
-    # layers.Flatten(),
+    layers.Flatten(),
     
-    # layers.Dense(128, activation='relu'),
-    # layers.Dropout(0.5),
+    layers.Dense(128, activation='relu'),
+    layers.Dropout(0.5),
     
-    # layers.Dense(NUM_CLASSES, activation='softmax')
+    layers.Dense(NUM_CLASSES, activation='softmax')
 ])
 
 model.summary()
@@ -65,7 +67,7 @@ early_stopping = keras.callbacks.EarlyStopping(
 
 # Model Chekpoint (가장 좋은 모델 저장)
 model_checkpoint = keras.callbacks.ModelCheckpoint(
-    './models/???.keras',  # 모델 저장 경로, model 이름으로
+    './models/CNN.keras',  # 모델 저장 경로, model 이름으로
     monitor='val_accuracy',
     save_best_only=True,  # 가장 좋은 모델만 저장
     mode='max',  # val_accuracy가 최대일 때 저장
@@ -107,11 +109,23 @@ final_accuracy = accuracy_score(y_true, y_pred)
 print(f"Final training accuracy using sklearn's accuracy_score: {final_accuracy * 100:.2f}%")
 
 # 학습 및 검증 정확도 그래프
+plt.figure(figsize=(10, 6))
 plt.plot(history.history['accuracy'], label='Training Accuracy')
 plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
 plt.xlabel('Epochs')
 plt.ylabel('Accuracy')
-plt.title('Accuracy vs Validation Accuracy')
+plt.title('Training and Validation Accuracy')
 plt.legend()
+plt.grid(True)
 plt.show()
 
+# Top-2 Accuracy 그래프
+plt.figure(figsize=(10, 6))
+plt.plot(history.history['sparse_top_k_categorical_accuracy'], label='Training Top-2 Accuracy')
+plt.plot(history.history['val_sparse_top_k_categorical_accuracy'], label='Validation Top-2 Accuracy')
+plt.xlabel('Epochs')
+plt.ylabel('Top-2 Accuracy')
+plt.title('Training and Validation Top-2 Accuracy')
+plt.legend()
+plt.grid(True)
+plt.show()
