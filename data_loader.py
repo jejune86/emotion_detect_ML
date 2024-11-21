@@ -30,7 +30,7 @@ def load_train_data(
         labels="inferred",
         label_mode="int",
         image_size=(img_size, img_size),
-        color_mode="grayscale" if gray else "RGB",
+        color_mode="grayscale" if gray else "rgb",
         batch_size=batch_size,
         shuffle=False,  # shuffle=False로 먼저 불러오고 stratified sampling 처리
         seed=RANDOM_STATE,
