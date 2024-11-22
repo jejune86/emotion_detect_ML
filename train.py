@@ -106,13 +106,9 @@ history = grid_result.best_estimator_.history_
 
 y_true = y_val
 y_pred = best_model.predict(X_val)
-cm = confusion_matrix(y_val, y_pred)
 
-# Confusion Matrix 시각화
-disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=np.unique(y_val))
-disp.plot(cmap=plt.cm.Blues)
-plt.title('Confusion Matrix')
-plt.show()
+final_accuracy = accuracy_score(y_true, y_pred)
+print(f"Final training accuracy using sklearn's accuracy_score: {final_accuracy * 100:.2f}%")
 
 # 학습 및 검증 정확도 그래프
 plt.figure(figsize=(10, 6))
@@ -134,4 +130,12 @@ plt.ylabel('Top-2 Accuracy')
 plt.title('Training and Validation Top-2 Accuracy')
 plt.legend()
 plt.grid(True)
+plt.show()
+
+cm = confusion_matrix(y_val, y_pred)
+
+# Confusion Matrix 시각화
+disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=np.unique(y_val))
+disp.plot(cmap=plt.cm.Blues)
+plt.title('Confusion Matrix')
 plt.show()
