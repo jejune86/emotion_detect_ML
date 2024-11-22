@@ -17,7 +17,7 @@ from tensorflow.python.client import device_lib
 #os.environ["CUDA_VISIBLE_DEVICES"] = "0" #gpu
 
 INPUT_SIZE = DEFAULT_SIZE #48
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 EPOCHS = 10
 
 #hyperparameter tuning
@@ -83,33 +83,32 @@ model_checkpoint = keras.callbacks.ModelCheckpoint(
 )
 
 
-
 # 모델 학습
 grid_search_cv = GridSearchCV(keras_clf, param_distribs, cv=StratifiedKFold(n_splits=5))
-grid_search_cv.fit(X, y, epochs=EPOCHS, callbacks=[early_stopping], verbose=1)
+grid_result = grid_search_cv.fit(X, y, epochs=EPOCHS, callbacks=[early_stopping], verbose=1)
+
+best_params = grid_result.best_params_
+best_score = grid_result.best_score_
+
+print(f"Best Parameters: {best_params}")
+print(f"Best Cross-Validation Accuracy: {best_score:.4f}")
 
 best_model = grid_search_cv.best_estimator_
 
-history = best_model.fit(
-    X_train, y_train,  # X and y are your training data, no need to split again
-    epochs=EPOCHS,
-    validation_data=(X_val, y_val),  # Use the validation data
-    verbose=1,
-    callbacks=[early_stopping]
-)
 
 # 모델 예측 및 정확도 계산
 y_true = y_val
 y_pred = best_model.predict(X_val)
 
+history = grid_result.best_estimator_.history_
 # accuracy_score 계산
 final_accuracy = accuracy_score(y_true, y_pred)
 print(f"Final training accuracy using sklearn's accuracy_score: {final_accuracy * 100:.2f}%")
 
 # 학습 및 검증 정확도 그래프
 plt.figure(figsize=(10, 6))
-plt.plot(history.history_['accuracy'], label='Training Accuracy')
-plt.plot(history.history_['val_accuracy'], label='Validation Accuracy')
+plt.plot(history['accuracy'], label='Training Accuracy')
+plt.plot(history['val_accuracy'], label='Validation Accuracy')
 plt.xlabel('Epochs')
 plt.ylabel('Accuracy')
 plt.title('Training and Validation Accuracy')
@@ -119,8 +118,8 @@ plt.show()
 
 # Top-2 Accuracy 그래프
 plt.figure(figsize=(10, 6))
-plt.plot(history.history_['sparse_top_k_categorical_accuracy'], label='Training Top-2 Accuracy')
-plt.plot(history.history_['val_sparse_top_k_categorical_accuracy'], label='Validation Top-2 Accuracy')
+plt.plot(history['sparse_top_k_categorical_accuracy'], label='Training Top-2 Accuracy')
+plt.plot(history['val_sparse_top_k_categorical_accuracy'], label='Validation Top-2 Accuracy')
 plt.xlabel('Epochs')
 plt.ylabel('Top-2 Accuracy')
 plt.title('Training and Validation Top-2 Accuracy')
