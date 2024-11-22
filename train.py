@@ -10,7 +10,7 @@ from sklearn.model_selection import GridSearchCV, StratifiedKFold
 from sklearn.preprocessing import LabelEncoder
 from keras import layers, models
 import matplotlib.pyplot as plt
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDisplay
 from data_loader import load_train_data
 from data_loader import NUM_CLASSES, DEFAULT_SIZE
 from tensorflow.python.client import device_lib
@@ -20,9 +20,6 @@ INPUT_SIZE = DEFAULT_SIZE #48
 BATCH_SIZE = 64
 EPOCHS = 10
 
-#hyperparameter tuning
-#learning rate, optimizer, batch size
-
 # Data Load
 X, y, X_train, y_train, X_val, y_val = load_train_data(img_size=INPUT_SIZE, gray=True, normalization=True, flatten=False, batch_size=BATCH_SIZE)
 
@@ -31,11 +28,16 @@ X, y, X_train, y_train, X_val, y_val = load_train_data(img_size=INPUT_SIZE, gray
 model = models.Sequential([
         # relu 쓰면, kernel_initializer='he_normal'
         # sigmoid, tanh 에는 default (glorot_normal)
-        layers.Input(shape=(INPUT_SIZE, INPUT_SIZE, 1)),  # Input 레이어 추가
-        layers.Conv2D(16, (3, 3), activation='relu', kernel_initializer='he_normal'),
-        layers.MaxPooling2D((2, 2)),
-        layers.Flatten(),
-        layers.Dense(NUM_CLASSES, activation='softmax')
+        
+        
+        # TODO 여기에 모델 채워 넣고 실행
+        
+        
+        # layers.Input(shape=(INPUT_SIZE, INPUT_SIZE, 1)),  # Input 레이어 추가
+        # layers.Conv2D(16, (3, 3), activation='relu', kernel_initializer='he_normal'),
+        # layers.MaxPooling2D((2, 2)),
+        # layers.Flatten(),
+        # layers.Dense(NUM_CLASSES, activation='softmax')
     ])
 model.summary()
 
@@ -97,13 +99,20 @@ best_model = grid_search_cv.best_estimator_
 
 
 # 모델 예측 및 정확도 계산
-y_true = y_val
-y_pred = best_model.predict(X_val)
+
 
 history = grid_result.best_estimator_.history_
 # accuracy_score 계산
-final_accuracy = accuracy_score(y_true, y_pred)
-print(f"Final training accuracy using sklearn's accuracy_score: {final_accuracy * 100:.2f}%")
+
+y_true = y_val
+y_pred = best_model.predict(X_val)
+cm = confusion_matrix(y_val, y_pred)
+
+# Confusion Matrix 시각화
+disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=np.unique(y_val))
+disp.plot(cmap=plt.cm.Blues)
+plt.title('Confusion Matrix')
+plt.show()
 
 # 학습 및 검증 정확도 그래프
 plt.figure(figsize=(10, 6))
