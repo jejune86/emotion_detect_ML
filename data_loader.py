@@ -18,37 +18,28 @@ NUM_CLASSES = len(classes)
 
 
 def load_train_data(
-    img_size=DEFAULT_SIZE,
-    gray=False,
-    normalization=True,
-    flatten=False,
-    batch_size=64,
-):
+                     img_size=DEFAULT_SIZE,
+                     gray=False,
+                     normalization=True,
+                     flatten=False,
+                                                ):
 
-
-    # 전체 데이터셋을 한 번에 로드 (batch_size=None 사용)
+    # 전체 데이터셋을 로드
     train_dataset = tf.keras.preprocessing.image_dataset_from_directory(
         train_path,
         labels="inferred",
         label_mode="int",
         image_size=(img_size, img_size),
         color_mode="grayscale" if gray else "rgb",  # batch_size를 None으로 설정하여 전체 데이터셋을 한 번에 로드
-        batch_size=batch_size,
+        batch_size=32768,
         shuffle=False,
         seed=RANDOM_STATE,
         class_names=classes
     )
 
-    # 데이터셋에서 이미지와 라벨 추출하는 부분 수정
-    images_list = []
-    labels_list = []
-    
-    for images, labels in train_dataset:
-        images_list.append(images.numpy())
-        labels_list.append(labels.numpy())
-    
-    all_images = np.concatenate(images_list, axis=0)
-    all_labels = np.concatenate(labels_list, axis=0)
+    # 한 번에 numpy 배열로 변환
+    all_images = np.vstack([images.numpy() for images, _ in train_dataset])
+    all_labels = np.hstack([labels.numpy() for _, labels in train_dataset])
 
 
     # Stratified split: 데이터를 훈련 세트와 검증 세트로 나누기
@@ -106,12 +97,14 @@ def load_train_data(
         y_train_other
     ], axis=0)
 
+
     def preprocess_image(image, label):
         if normalization:
             image = image / 255.0
         if flatten:
             image = image.flatten()
         return image, label
+    
     
     X_train_augmented, y_train_augmented = preprocess_image(X_train_augmented, y_train_augmented)
     X_val, y_val = preprocess_image(X_val, y_val)
@@ -124,9 +117,12 @@ def load_train_data(
     # # 다른 클래스 증강 결과 시각화
     # augmented_batch_other = augment_image(X_train_other[:5])
     # visualize_augmented_images(X_train_other[:5], augmented_batch_other)
-
-    X_train_augmented = tf.keras.applications.densenet.preprocess_input(X_train_augmented)
-    X_val = tf.keras.applications.densenet.preprocess_input(X_val)
+    
+    
+    #TODO 추가적인 전처리 필요한 경우 여기에
+    # ex) DenseNet169 
+    # X_train_augmented = tf.keras.applications.densenet.preprocess_input(X_train_augmented)
+    # X_val = tf.keras.applications.densenet.preprocess_input(X_val)
     
     
     # 증강된 데이터를 tf.data.Dataset으로 변환
@@ -135,13 +131,6 @@ def load_train_data(
 
     # 성능 최적화를 위한 데이터 파이프라인 설정
     train_ds = train_ds.shuffle(buffer_size=len(X_train_augmented))
-    train_ds = train_ds.batch(batch_size)
-    train_ds = train_ds.prefetch(tf.data.AUTOTUNE)
-    
-    val_ds = val_ds.batch(batch_size)
-    val_ds = val_ds.prefetch(tf.data.AUTOTUNE)
-
-    
 
     return train_ds, val_ds
 
