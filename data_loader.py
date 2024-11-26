@@ -10,7 +10,7 @@ VALIDATION_SIZE = 0.2
 DEFAULT_SIZE = 48
 
 # 클래스 레이블 정의
-classes = ["angry", "disgusted","fearful", "happy", "neutral", "sad", "surprised"]
+classes = ["angry", "disgusted", "fearful", "happy", "neutral", "sad", "surprised"]
 # disgusted는 데이터가 너무 부족하여, 사용 x
 
 NUM_CLASSES = len(classes)
@@ -113,5 +113,13 @@ def load_train_data(
         y_train_other
     ], axis=0)
 
-    # Return the augmented train and validation data
-    return X_train_augmented, y_train_augmented, X_val, y_val
+    # 증강된 데이터를 tf.data.Dataset으로 변환
+    train_ds = tf.data.Dataset.from_tensor_slices((X_train_augmented, y_train_augmented))
+    val_ds = tf.data.Dataset.from_tensor_slices((X_val, y_val))
+
+    # Dataset 설정 (섞기, 배치 처리)
+    train_ds = train_ds.shuffle(buffer_size=len(X_train_augmented))
+    train_ds = train_ds.batch(batch_size)
+    val_ds = val_ds.batch(batch_size)
+
+    return train_ds, val_ds

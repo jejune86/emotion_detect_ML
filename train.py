@@ -20,7 +20,7 @@ learning_rates = [1e-5, 1e-4, 1e-3, 1e-2] #필요하다면 추가적으로 hyper
 optimizers = ['adam', 'rmsprop']
 
 # Data Load
-X_train, y_train, X_val, y_val = load_train_data(img_size=INPUT_SIZE, gray=False, normalization=True, flatten=False, batch_size=BATCH_SIZE)
+train_dataset, validation_dataset = load_train_data(img_size=INPUT_SIZE, gray=False, normalization=True, flatten=False, batch_size=BATCH_SIZE)
 
 # 모델에 따라 추가적인 preprocessing 필요한 경우 있음 
 
@@ -90,14 +90,16 @@ for lr in learning_rates:
         )
         
         history = model.fit(
-            X_train, y_train,
+            train_dataset,
             epochs=EPOCHS,
-            validation_data=(X_val, y_val),
+            validation_data=validation_dataset,
             callbacks=[early_stopping],
             verbose=1
         )
         
-        val_accuracy = max(history.history['val_accuracy'])
+        # validation 데이터에서 정확도 계산
+        val_metrics = model.evaluate(validation_dataset)
+        val_accuracy = val_metrics[1]  # accuracy는 두 번째 메트릭
         
         if val_accuracy > best_val_accuracy:
             best_val_accuracy = val_accuracy
@@ -130,12 +132,19 @@ plt.legend()
 plt.grid(True)
 plt.show()
 
-# Confusion Matrix
-y_pred = best_model.predict(X_val)
-y_pred = np.argmax(y_pred, axis=1)
-cm = confusion_matrix(y_val, y_pred)
+# Confusion Matrix 계산을 위한 수정
+y_true = []
+y_pred = []
 
-disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=np.unique(y_val))
+# 전체 validation 데이터셋에서 예측값과 실제값 수집
+for images, labels in validation_dataset:
+    predictions = best_model.predict(images)
+    y_pred.extend(np.argmax(predictions, axis=1))
+    y_true.extend(np.argmax(labels, axis=1))
+
+cm = confusion_matrix(y_true, y_pred)
+
+disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=range(NUM_CLASSES))
 disp.plot(cmap=plt.cm.Blues)
 plt.title('Confusion Matrix')
 plt.show()
