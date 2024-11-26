@@ -2,6 +2,7 @@ import tensorflow as tf
 import numpy as np
 from PIL import Image
 from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
 
 train_path = "./dataset/train"
 test_path = "./dataset/test"
@@ -11,9 +12,10 @@ DEFAULT_SIZE = 48
 
 # 클래스 레이블 정의
 classes = ["angry", "disgusted", "fearful", "happy", "neutral", "sad", "surprised"]
-# disgusted는 데이터가 너무 부족하여, 사용 x
 
 NUM_CLASSES = len(classes)
+
+
 
 def load_train_data(
     img_size=DEFAULT_SIZE,
@@ -24,60 +26,50 @@ def load_train_data(
 ):
 
 
-    # 라벨을 stratified하게 분리하기 위해 이미지와 라벨을 수동으로 추출
+    # 전체 데이터셋을 한 번에 로드 (batch_size=None 사용)
     train_dataset = tf.keras.preprocessing.image_dataset_from_directory(
         train_path,
         labels="inferred",
         label_mode="int",
         image_size=(img_size, img_size),
-        color_mode="grayscale" if gray else "rgb",
+        color_mode="grayscale" if gray else "rgb",  # batch_size를 None으로 설정하여 전체 데이터셋을 한 번에 로드
         batch_size=batch_size,
-        shuffle=False,  # shuffle=False로 먼저 불러오고 stratified sampling 처리
+        shuffle=False,
         seed=RANDOM_STATE,
-        class_names = classes
+        class_names=classes
     )
 
-    # 라벨과 이미지 데이터를 리스트로 가져오기
-    all_images = []
-    all_labels = []
-    for image_batch, label_batch in train_dataset:
-        all_images.append(image_batch.numpy())
-        all_labels.append(label_batch.numpy())
-
-    # 배치 처리된 데이터를 하나의 배열로 합침
-    all_images = np.concatenate(all_images, axis=0)
-    all_labels = np.concatenate(all_labels, axis=0)
+    # 데이터셋에서 이미지와 라벨 추출하는 부분 수정
+    images_list = []
+    labels_list = []
     
-    # 데이터 전처리 함수 정의
-    def preprocess_image(image, label):
-        if normalization:
-            image = image / 255.0  # 정규화
-        if flatten:
-            image = image.flatten()  # 평탄화
-        return image, label
-
-    all_images, all_labels = preprocess_image(all_images, all_labels)
+    for images, labels in train_dataset:
+        images_list.append(images.numpy())
+        labels_list.append(labels.numpy())
     
+    all_images = np.concatenate(images_list, axis=0)
+    all_labels = np.concatenate(labels_list, axis=0)
+
+
     # Stratified split: 데이터를 훈련 세트와 검증 세트로 나누기
     X_train, X_val, y_train, y_val = train_test_split(
         all_images, all_labels, test_size=VALIDATION_SIZE, stratify=all_labels, random_state=RANDOM_STATE
     )
 
-
     def augment_image(images):
-
-        images = np.array([np.fliplr(img) for img in images])
+        # 이미지 증강을 위한 레이어 정의
+        augmentation_layers = tf.keras.Sequential([
+            tf.keras.layers.RandomFlip("horizontal"),
+            tf.keras.layers.RandomRotation(0.2),
+            tf.keras.layers.RandomZoom(0.2),
+            tf.keras.layers.RandomTranslation(0.1, 0.1)
+        ])
         
-        brightness_factor = np.random.uniform(0.9, 1.1, size=images.shape[0])
-        images = np.array([np.clip(img * factor, 0, 255).astype(np.uint8) for img, factor in zip(images, brightness_factor)])
-        
-        contrast_factor = np.random.uniform(0.8, 1.2, size=images.shape[0])
-        images = np.array([np.clip(img * factor, 0, 255).astype(np.uint8) for img, factor in zip(images, contrast_factor)])
-
-        return images
+        # 증강 적용
+        augmented = augmentation_layers(images)
+        return augmented
 
     # happy와 disgusted 클래스에 대한 처리를 분리
-    non_happy_indices = y_train != classes.index("happy")
     disgusted_indices = y_train == classes.index("disgusted")
     other_indices = ~(disgusted_indices | (y_train == classes.index("happy")))
 
@@ -107,19 +99,79 @@ def load_train_data(
         augmented_disgusted,
         augmented_other
     ], axis=0)
+    
     y_train_augmented = np.concatenate([
         y_train,
         y_train_disgusted_aug,
         y_train_other
     ], axis=0)
 
+    def preprocess_image(image, label):
+        if normalization:
+            image = image / 255.0
+        if flatten:
+            image = image.flatten()
+        return image, label
+    
+    X_train_augmented, y_train_augmented = preprocess_image(X_train_augmented, y_train_augmented)
+    X_val, y_val = preprocess_image(X_val, y_val)
+
+
+    # # disgusted 클래스 증강 결과 시각화
+    # augmented_batch = augment_image(X_train_disgusted[:5])
+    # visualize_augmented_images(X_train_disgusted[:5], augmented_batch)
+    
+    # # 다른 클래스 증강 결과 시각화
+    # augmented_batch_other = augment_image(X_train_other[:5])
+    # visualize_augmented_images(X_train_other[:5], augmented_batch_other)
+
+    X_train_augmented = tf.keras.applications.densenet.preprocess_input(X_train_augmented)
+    X_val = tf.keras.applications.densenet.preprocess_input(X_val)
+    
+    
     # 증강된 데이터를 tf.data.Dataset으로 변환
     train_ds = tf.data.Dataset.from_tensor_slices((X_train_augmented, y_train_augmented))
     val_ds = tf.data.Dataset.from_tensor_slices((X_val, y_val))
 
-    # Dataset 설정 (섞기, 배치 처리)
+    # 성능 최적화를 위한 데이터 파이프라인 설정
     train_ds = train_ds.shuffle(buffer_size=len(X_train_augmented))
     train_ds = train_ds.batch(batch_size)
+    train_ds = train_ds.prefetch(tf.data.AUTOTUNE)
+    
     val_ds = val_ds.batch(batch_size)
+    val_ds = val_ds.prefetch(tf.data.AUTOTUNE)
+
+    
 
     return train_ds, val_ds
+
+
+
+def visualize_augmented_images(original_images, augmented_images, num_samples=5):
+    plt.figure(figsize=(15, 3*num_samples))
+    
+    for idx in range(min(num_samples, len(original_images))):
+        # 원본 이미지
+        plt.subplot(num_samples, 2, 2*idx + 1)
+        img = original_images[idx]
+        if len(img.shape) == 2:
+            plt.imshow(img, cmap='gray', vmin=0, vmax=255)
+        else:
+            plt.imshow(img.astype(np.uint8), vmin=0, vmax=255)
+        plt.title(f'Original Image {idx+1}')
+        plt.axis('off')
+        
+        # Augmented image
+        plt.subplot(num_samples, 2, 2*idx + 2)
+        aug_img = augmented_images[idx]
+        if isinstance(aug_img, tf.Tensor):
+            aug_img = aug_img.numpy()
+        if len(aug_img.shape) == 2:
+            plt.imshow(aug_img, cmap='gray', vmin=0, vmax=255)
+        else:
+            plt.imshow(aug_img.astype(np.uint8), vmin=0, vmax=255)
+        plt.title(f'Augmented Image {idx+1}')
+        plt.axis('off')
+    
+    plt.tight_layout()
+    plt.show()

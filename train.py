@@ -16,7 +16,7 @@ BATCH_SIZE = 64
 EPOCHS = 15
 
 # 하이퍼파라미터 그리드
-learning_rates = [1e-5, 1e-4, 1e-3, 1e-2] #필요하다면 추가적으로 hyperparameter 조정
+learning_rates = [1e-3, 1e-2] #필요하다면 추가적으로 hyperparameter 조정
 optimizers = ['adam', 'rmsprop']
 
 # Data Load
@@ -25,11 +25,11 @@ train_dataset, validation_dataset = load_train_data(img_size=INPUT_SIZE, gray=Fa
 # 모델에 따라 추가적인 preprocessing 필요한 경우 있음 
 
 
-# feature_extractor = tf.keras.applications.DenseNet169(
-#     input_shape=(INPUT_SIZE,INPUT_SIZE, 3),
-#     include_top=False,
-#     weights="imagenet"
-# )
+feature_extractor = tf.keras.applications.DenseNet169(
+    input_shape=(INPUT_SIZE,INPUT_SIZE, 3),
+    include_top=False,
+    weights="imagenet"
+)
 
 # 모델 정의
 model = models.Sequential([
@@ -38,15 +38,15 @@ model = models.Sequential([
     
     
     # ex) DenseNet169
-    # feature_extractor,
-    # tf.keras.layers.GlobalAveragePooling2D(),
-    # tf.keras.layers.Dense(256, activation="relu", kernel_regularizer = tf.keras.regularizers.l2(0.01)),
-    # tf.keras.layers.Dropout(0.3),
-    # tf.keras.layers.Dense(1024, activation="relu", kernel_regularizer = tf.keras.regularizers.l2(0.01)),
-    # tf.keras.layers.Dropout(0.5),
-    # tf.keras.layers.Dense(512, activation="relu", kernel_regularizer = tf.keras.regularizers.l2(0.01)),
-    # tf.keras.layers.Dropout(0.5),
-    # tf.keras.layers.Dense(NUM_CLASSES, activation="softmax", name="classification"),
+    feature_extractor,
+    tf.keras.layers.GlobalAveragePooling2D(),
+    tf.keras.layers.Dense(256, activation="relu", kernel_regularizer = tf.keras.regularizers.l2(0.01)),
+    tf.keras.layers.Dropout(0.3),
+    tf.keras.layers.Dense(1024, activation="relu", kernel_regularizer = tf.keras.regularizers.l2(0.01)),
+    tf.keras.layers.Dropout(0.5),
+    tf.keras.layers.Dense(512, activation="relu", kernel_regularizer = tf.keras.regularizers.l2(0.01)),
+    tf.keras.layers.Dropout(0.5),
+    tf.keras.layers.Dense(NUM_CLASSES, activation="softmax", name="classification"),
 ])
 
 # Focal Loss
@@ -79,7 +79,7 @@ for lr in learning_rates:
         
         model.compile(
             optimizer=optimizer,
-            loss=focal_loss_sparse(),
+            loss = "sparse_categorical_crossentropy",
             metrics=['accuracy', tf.keras.metrics.SparseTopKCategoricalAccuracy(k=2)]
         )
         
