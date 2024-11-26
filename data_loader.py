@@ -10,7 +10,7 @@ VALIDATION_SIZE = 0.2
 DEFAULT_SIZE = 48
 
 # 클래스 레이블 정의
-classes = ["angry", "fearful", "happy", "neutral", "sad", "surprised"]
+classes = ["angry", "disgusted","fearful", "happy", "neutral", "sad", "surprised"]
 # disgusted는 데이터가 너무 부족하여, 사용 x
 
 NUM_CLASSES = len(classes)
@@ -76,17 +76,42 @@ def load_train_data(
 
         return images
 
-    # 학습 데이터에는 증강 적용
+    # happy와 disgusted 클래스에 대한 처리를 분리
     non_happy_indices = y_train != classes.index("happy")
-    X_train_non_happy = X_train[non_happy_indices]
-    y_train_non_happy = y_train[non_happy_indices]
+    disgusted_indices = y_train == classes.index("disgusted")
+    other_indices = ~(disgusted_indices | (y_train == classes.index("happy")))
+
+    # disgusted 클래스의 데이터
+    X_train_disgusted = X_train[disgusted_indices]
+    y_train_disgusted = y_train[disgusted_indices]
     
-    # Convert lists to np.array
-    augmented_images = augment_image(X_train_non_happy)
+    # 나머지 클래스의 데이터 (happy 제외)
+    X_train_other = X_train[other_indices]
+    y_train_other = y_train[other_indices]
+
+    # disgusted 클래스는 3배로 증강
+    augmented_disgusted = np.concatenate([
+        augment_image(X_train_disgusted),
+        augment_image(X_train_disgusted),
+        augment_image(X_train_disgusted)
+    ])
     
-    # augment된 데이터 추가
-    X_train_augmented = np.concatenate([X_train, np.array(augmented_images)], axis=0)
-    y_train_augmented = np.concatenate([y_train, np.array(y_train_non_happy)], axis=0)
+    y_train_disgusted_aug = np.repeat(y_train_disgusted, 3)
+
+    # 다른 클래스들은 1번만 증강
+    augmented_other = augment_image(X_train_other)
+    
+    # 모든 데이터 합치기
+    X_train_augmented = np.concatenate([
+        X_train,
+        augmented_disgusted,
+        augmented_other
+    ], axis=0)
+    y_train_augmented = np.concatenate([
+        y_train,
+        y_train_disgusted_aug,
+        y_train_other
+    ], axis=0)
 
     # Return the augmented train and validation data
-    return all_images, all_labels, X_train_augmented, y_train_augmented, X_val, y_val
+    return X_train_augmented, y_train_augmented, X_val, y_val

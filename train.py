@@ -3,117 +3,115 @@ import os
 from PIL import Image
 import numpy as np
 import tensorflow as tf
-import keras
-import sklearn
-from scikeras.wrappers import KerasClassifier
-from sklearn.model_selection import GridSearchCV, StratifiedKFold
-from sklearn.preprocessing import LabelEncoder
 from keras import layers, models
 import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDisplay
 from data_loader import load_train_data
 from data_loader import NUM_CLASSES, DEFAULT_SIZE
 from tensorflow.python.client import device_lib
-#os.environ["CUDA_VISIBLE_DEVICES"] = "0" #gpu
+#os.environ["CUDA_VISIBLE_DEVICES"] = "0" #주석 풀어서 gpu 사용
 
-INPUT_SIZE = DEFAULT_SIZE #48
+INPUT_SIZE = DEFAULT_SIZE    #TODO 모델에 따라 INPUT_SIZE 조정
 BATCH_SIZE = 64
-EPOCHS = 10
+EPOCHS = 15
+
+# 하이퍼파라미터 그리드
+learning_rates = [1e-5, 1e-4, 1e-3, 1e-2] #필요하다면 추가적으로 hyperparameter 조정
+optimizers = ['adam', 'rmsprop']
 
 # Data Load
-X, y, X_train, y_train, X_val, y_val = load_train_data(img_size=INPUT_SIZE, gray=True, normalization=True, flatten=False, batch_size=BATCH_SIZE)
+X_train, y_train, X_val, y_val = load_train_data(img_size=INPUT_SIZE, gray=False, normalization=True, flatten=False, batch_size=BATCH_SIZE)
 
 # 모델에 따라 추가적인 preprocessing 필요한 경우 있음 
 
-model = models.Sequential([
-        # relu 쓰면, kernel_initializer='he_normal'
-        # sigmoid, tanh 에는 default (glorot_normal)
-        
-        
-        # TODO 여기에 모델 채워 넣고 실행
-        
-        
-        # layers.Input(shape=(INPUT_SIZE, INPUT_SIZE, 1)),  # Input 레이어 추가
-        # layers.Conv2D(16, (3, 3), activation='relu', kernel_initializer='he_normal'),
-        # layers.MaxPooling2D((2, 2)),
-        # layers.Flatten(),
-        # layers.Dense(NUM_CLASSES, activation='softmax')
-    ])
-model.summary()
+
+# feature_extractor = tf.keras.applications.DenseNet169(
+#     input_shape=(INPUT_SIZE,INPUT_SIZE, 3),
+#     include_top=False,
+#     weights="imagenet"
+# )
 
 # 모델 정의
-def build_model(optimizer='adam', learning_rate=1e-3):
-    build_model = model    
-    if optimizer == 'adam':
-        optimizer = keras.optimizers.Adam(learning_rate=learning_rate)
-    elif optimizer == 'rmsprop':
-        optimizer = keras.optimizers.RMSprop(learning_rate=learning_rate)
-    else:
-        optimizer = keras.optimizers.SGD(learning_rate=learning_rate)
-    # 하이퍼파라미터 튜닝 설정
+model = models.Sequential([
+
+    #TODO 모델 추가 필요
     
-    build_model.compile(
-        optimizer=optimizer,
-        loss='sparse_categorical_crossentropy',
-        metrics=['accuracy', keras.metrics.SparseTopKCategoricalAccuracy(k=2)]
-    )
     
-    return build_model
+    # ex) DenseNet169
+    # feature_extractor,
+    # tf.keras.layers.GlobalAveragePooling2D(),
+    # tf.keras.layers.Dense(256, activation="relu", kernel_regularizer = tf.keras.regularizers.l2(0.01)),
+    # tf.keras.layers.Dropout(0.3),
+    # tf.keras.layers.Dense(1024, activation="relu", kernel_regularizer = tf.keras.regularizers.l2(0.01)),
+    # tf.keras.layers.Dropout(0.5),
+    # tf.keras.layers.Dense(512, activation="relu", kernel_regularizer = tf.keras.regularizers.l2(0.01)),
+    # tf.keras.layers.Dropout(0.5),
+    # tf.keras.layers.Dense(NUM_CLASSES, activation="softmax", name="classification"),
+])
 
+# Focal Loss
+def focal_loss_sparse(gamma=2., alpha=0.25):
+    def loss(y_true, y_pred):
+        y_true = tf.cast(y_true, tf.int32)
+        y_pred = tf.clip_by_value(y_pred, 1e-7, 1.0)
+        y_pred_probs = tf.gather(y_pred, y_true[..., None], axis=-1, batch_dims=1)
+        y_pred_probs = tf.squeeze(y_pred_probs, axis=-1)
+        cross_entropy = -tf.math.log(y_pred_probs)
+        p_t = tf.math.exp(-cross_entropy)
+        loss = alpha * (1 - p_t) ** gamma * cross_entropy
+        return tf.reduce_mean(loss)
+    return loss
 
-keras_clf = KerasClassifier(build_model, optimizer='adam', learning_rate=1e-3)
+best_val_accuracy = 0
+best_model = None
+best_history = None
+best_params = None
 
-param_distribs = {
-    "optimizer": ["adam", "rmsprop", "sgd" ], 
-    "learning_rate": [1e-6, 1e-5, 1e-4, 1e-3, 1e-2],
-}
+# Grid Search
+for lr in learning_rates:
+    for opt_name in optimizers:
+        print(f"\n시도: learning_rate={lr}, optimizer={opt_name}")
+        
+        if opt_name == 'adam':
+            optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
+        else:
+            optimizer = tf.keras.optimizers.RMSprop(learning_rate=lr)
+        
+        model.compile(
+            optimizer=optimizer,
+            loss=focal_loss_sparse(),
+            metrics=['accuracy', tf.keras.metrics.SparseTopKCategoricalAccuracy(k=2)]
+        )
+        
+        early_stopping = tf.keras.callbacks.EarlyStopping(
+            monitor='val_accuracy',
+            patience=5,
+            restore_best_weights=True
+        )
+        
+        history = model.fit(
+            X_train, y_train,
+            epochs=EPOCHS,
+            validation_data=(X_val, y_val),
+            callbacks=[early_stopping],
+            verbose=1
+        )
+        
+        val_accuracy = max(history.history['val_accuracy'])
+        
+        if val_accuracy > best_val_accuracy:
+            best_val_accuracy = val_accuracy
+            best_model = model
+            best_history = history.history
+            best_params = {'learning_rate': lr, 'optimizer': opt_name}
 
-# EarlyStopping
-early_stopping = keras.callbacks.EarlyStopping(
-    monitor='val_accuracy',
-    patience=5,
-    restore_best_weights=True
-)
+print(f"\n최적 파라미터: {best_params}")
+print(f"최고 검증 정확도: {best_val_accuracy:.4f}")
 
-# Model Chekpoint (가장 좋은 모델 저장) 저장 안하는 게 좋을듯..? 사용하려면, callbacks에 추가
-model_checkpoint = keras.callbacks.ModelCheckpoint(
-    './models/????.keras',  # 모델 저장 경로, model 이름으로
-    monitor='val_accuracy',
-    save_best_only=True,  # 가장 좋은 모델만 저장
-    mode='max',  # val_accuracy가 최대일 때 저장
-    verbose=1
-)
-
-
-# 모델 학습
-grid_search_cv = GridSearchCV(keras_clf, param_distribs, cv=StratifiedKFold(n_splits=5))
-grid_result = grid_search_cv.fit(X, y, epochs=EPOCHS, callbacks=[early_stopping], verbose=1)
-
-best_params = grid_result.best_params_
-best_score = grid_result.best_score_
-
-print(f"Best Parameters: {best_params}")
-print(f"Best Cross-Validation Accuracy: {best_score:.4f}")
-
-best_model = grid_search_cv.best_estimator_
-
-
-# 모델 예측 및 정확도 계산
-
-
-history = grid_result.best_estimator_.history_
-# accuracy_score 계산
-
-y_true = y_val
-y_pred = best_model.predict(X_val)
-
-final_accuracy = accuracy_score(y_true, y_pred)
-print(f"Final training accuracy using sklearn's accuracy_score: {final_accuracy * 100:.2f}%")
-
-# 학습 및 검증 정확도 그래프
+# 결과 시각화
 plt.figure(figsize=(10, 6))
-plt.plot(history['accuracy'], label='Training Accuracy')
-plt.plot(history['val_accuracy'], label='Validation Accuracy')
+plt.plot(best_history['accuracy'], label='Training Accuracy')
+plt.plot(best_history['val_accuracy'], label='Validation Accuracy')
 plt.xlabel('Epochs')
 plt.ylabel('Accuracy')
 plt.title('Training and Validation Accuracy')
@@ -123,8 +121,8 @@ plt.show()
 
 # Top-2 Accuracy 그래프
 plt.figure(figsize=(10, 6))
-plt.plot(history['sparse_top_k_categorical_accuracy'], label='Training Top-2 Accuracy')
-plt.plot(history['val_sparse_top_k_categorical_accuracy'], label='Validation Top-2 Accuracy')
+plt.plot(best_history['sparse_top_k_categorical_accuracy'], label='Training Top-2 Accuracy')
+plt.plot(best_history['val_sparse_top_k_categorical_accuracy'], label='Validation Top-2 Accuracy')
 plt.xlabel('Epochs')
 plt.ylabel('Top-2 Accuracy')
 plt.title('Training and Validation Top-2 Accuracy')
@@ -132,9 +130,11 @@ plt.legend()
 plt.grid(True)
 plt.show()
 
+# Confusion Matrix
+y_pred = best_model.predict(X_val)
+y_pred = np.argmax(y_pred, axis=1)
 cm = confusion_matrix(y_val, y_pred)
 
-# Confusion Matrix 시각화
 disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=np.unique(y_val))
 disp.plot(cmap=plt.cm.Blues)
 plt.title('Confusion Matrix')
