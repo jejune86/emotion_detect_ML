@@ -10,6 +10,8 @@ from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDis
 from data_loader import load_train_data
 from data_loader import NUM_CLASSES, DEFAULT_SIZE
 from tensorflow.python.client import device_lib
+from sklearn.metrics import classification_report
+import pandas as pd
 os.environ["CUDA_VISIBLE_DEVICES"] = "0" #주석 풀어서 gpu 사용
 
 INPUT_SIZE = DEFAULT_SIZE    #TODO 모델에 따라 INPUT_SIZE 조정
@@ -180,3 +182,28 @@ disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=range(NUM_CLAS
 disp.plot(cmap=plt.cm.Blues)
 plt.title('Confusion Matrix')
 plt.show()
+
+# Classification Report 생성 및 시각화
+report_dict = classification_report(y_true, y_pred, target_names=classes, output_dict=True)
+df = pd.DataFrame(report_dict).transpose()
+
+# 테이블 시각화
+plt.figure(figsize=(12, 8))
+plt.axis('off')
+table = plt.table(cellText=df.values.round(3),
+                 rowLabels=df.index,
+                 colLabels=df.columns,
+                 cellLoc='center',
+                 loc='center',
+                 bbox=[0.1, 0, 0.9, 1])
+
+# 테이블 스타일 조정
+table.auto_set_font_size(False)
+table.set_fontsize(9)
+table.scale(1.2, 1.8)
+
+plt.title('Classification Report', pad=20, size=15)
+plt.tight_layout()
+plt.savefig('classification_report_table.png', dpi=300, bbox_inches='tight')
+plt.show()
+
