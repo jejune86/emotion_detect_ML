@@ -32,24 +32,23 @@ train_dataset, validation_dataset = load_train_data(img_size=INPUT_SIZE, gray=Tr
 
 # 모델 정의
 model = models.Sequential([
-
-    #TODO 모델 추가 필요
-    # ex) Simple CNN
-    # layers.Conv2D(32, (3, 3), activation='relu', input_shape=(INPUT_SIZE, INPUT_SIZE, 1), kernel_initializer='he_normal'  ), 
-    # layers.MaxPooling2D((2, 2)),
+    layers.Input(shape=(INPUT_SIZE, INPUT_SIZE, 1)),  # 그레이스케일 이미지
+    layers.Conv2D(32, (3, 3), activation='relu', padding='same'),
+    layers.BatchNormalization(),
+    layers.MaxPooling2D((2, 2)),
     
-    # layers.Conv2D(64, (3, 3), activation='relu', kernel_initializer='he_normal'),
-    # layers.MaxPooling2D((2, 2)),
+    layers.Conv2D(64, (3, 3), activation='relu', padding='same'),
+    layers.BatchNormalization(),
+    layers.MaxPooling2D((2, 2)),
     
-    # layers.Conv2D(128, (3, 3), activation='relu', kernel_initializer='he_normal'),
-    # layers.MaxPooling2D((2, 2)),
+    layers.Conv2D(128, (3, 3), activation='relu', padding='same'),
+    layers.BatchNormalization(),
+    layers.MaxPooling2D((2, 2)),
     
-    # layers.Flatten(),
-    
-    # layers.Dense(128, activation='relu', kernel_initializer='he_normal'),
-    # layers.Dropout(0.5),
-    
-    # layers.Dense(NUM_CLASSES, activation='softmax')
+    layers.Flatten(),
+    layers.Dense(256, activation='relu'),
+    layers.Dropout(0.5),
+    layers.Dense(NUM_CLASSES, activation='softmax')
 ])
 
 model.summary()  
