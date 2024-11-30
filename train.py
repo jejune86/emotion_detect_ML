@@ -72,18 +72,23 @@ for lr in learning_rates:
             
             # 각 반복마다 새로운 모델 생성
             model = models.Sequential([
-                # TODO 여기에도 같은 모델 넣어주기, grid search 조건 추가
-                # ex) Simple CNN
-                # layers.Conv2D(32, (3, 3), activation=activation_name, input_shape=(INPUT_SIZE, INPUT_SIZE, 1), kernel_initializer='he_normal'), 
-                # layers.MaxPooling2D((2, 2)),
-                # layers.Conv2D(64, (3, 3), activation=activation_name, kernel_initializer='he_normal'),
-                # layers.MaxPooling2D((2, 2)),
-                # layers.Conv2D(128, (3, 3), activation=activation_name, kernel_initializer='he_normal'),
-                # layers.MaxPooling2D((2, 2)),
-                # layers.Flatten(),
-                # layers.Dense(128, activation=activation_name, kernel_initializer='he_normal'),
-                # layers.Dropout(0.5),
-                # layers.Dense(NUM_CLASSES, activation='softmax')
+                layers.Input(shape=(INPUT_SIZE, INPUT_SIZE, 1)),  # 그레이스케일 이미지
+                layers.Conv2D(32, (3, 3), activation='relu', padding='same'),
+                layers.BatchNormalization(),
+                layers.MaxPooling2D((2, 2)),
+                
+                layers.Conv2D(64, (3, 3), activation='relu', padding='same'),
+                layers.BatchNormalization(),
+                layers.MaxPooling2D((2, 2)),
+                
+                layers.Conv2D(128, (3, 3), activation='relu', padding='same'),
+                layers.BatchNormalization(),
+                layers.MaxPooling2D((2, 2)),
+                
+                layers.Flatten(),
+                layers.Dense(256, activation='relu'),
+                layers.Dropout(0.5),
+                layers.Dense(NUM_CLASSES, activation='softmax')
             ])
             
             # optimizer 설정
@@ -105,11 +110,20 @@ for lr in learning_rates:
                 restore_best_weights=True
             )
             
+            # Model Chekpoint (가장 좋은 모델 저장)
+            model_checkpoint = tf.keras.callbacks.ModelCheckpoint(
+                './models/bogil_CNN_model.keras',  # 모델 저장 경로
+                monitor='val_accuracy',
+                save_best_only=True,  # 가장 좋은 모델만 저장
+                mode='max',  # val_accuracy가 최대일 때 저장
+                verbose=1
+            )
+            
             history = model.fit(
                 train_ds,
                 epochs=EPOCHS,
                 validation_data=val_ds,
-                callbacks=[early_stopping],
+                callbacks=[early_stopping, model_checkpoint],
                 verbose=1
             )
             
