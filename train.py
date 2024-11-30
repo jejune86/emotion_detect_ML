@@ -93,7 +93,7 @@ for lr in learning_rates:
                 layers.Dense(NUM_CLASSES, activation='softmax')
             ])
             
-            # optimizer 설정
+             # optimizer 설정
             if opt_name == 'adam':
                 optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
             else:
@@ -112,20 +112,11 @@ for lr in learning_rates:
                 restore_best_weights=True
             )
             
-            # Model Chekpoint (가장 좋은 모델 저장)
-            model_checkpoint = tf.keras.callbacks.ModelCheckpoint(
-                './models/bogil_CNN_model.keras',  # 모델 저장 경로
-                monitor='val_accuracy',
-                save_best_only=True,  # 가장 좋은 모델만 저장
-                mode='max',  # val_accuracy가 최대일 때 저장
-                verbose=1
-            )
-            
             history = model.fit(
                 train_ds,
                 epochs=EPOCHS,
                 validation_data=val_ds,
-                callbacks=[early_stopping, model_checkpoint],
+                callbacks=[early_stopping],
                 verbose=1
             )
             
