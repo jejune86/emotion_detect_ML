@@ -139,6 +139,8 @@ plt.show()
 y_true = []
 y_pred = []
 
+validation_dataset = validation_dataset.batch(BATCH_SIZE)
+
 # 전체 validation 데이터셋에서 예측값과 실제값 수집
 for images, labels in validation_dataset:
     predictions = best_model.predict(images)
