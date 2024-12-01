@@ -31,25 +31,39 @@ train_dataset, validation_dataset = load_train_data(img_size=INPUT_SIZE, gray=Tr
 # TODO 모델에 따라 추가적인 preprocessing 필요한 경우 있음, data_loader.py에 가서 추가적인 전처리 필요 
 
 # 모델 정의
+# TODO 모델 정의 부분 수정 (AlexNet 구조)
 model = models.Sequential([
+    # Conv1 + MaxPool1
+    layers.Conv2D(96, kernel_size=(11, 11), strides=4, activation=activation_name, input_shape=(INPUT_SIZE, INPUT_SIZE, 1), kernel_initializer='he_normal'),
+    layers.MaxPooling2D(pool_size=(3, 3), strides=2),
 
-    #TODO 모델 추가 필요
-    # ex) Simple CNN
-    # layers.Conv2D(32, (3, 3), activation='relu', input_shape=(INPUT_SIZE, INPUT_SIZE, 1), kernel_initializer='he_normal'  ), 
-    # layers.MaxPooling2D((2, 2)),
-    
-    # layers.Conv2D(64, (3, 3), activation='relu', kernel_initializer='he_normal'),
-    # layers.MaxPooling2D((2, 2)),
-    
-    # layers.Conv2D(128, (3, 3), activation='relu', kernel_initializer='he_normal'),
-    # layers.MaxPooling2D((2, 2)),
-    
-    # layers.Flatten(),
-    
-    # layers.Dense(128, activation='relu', kernel_initializer='he_normal'),
-    # layers.Dropout(0.5),
-    
-    # layers.Dense(NUM_CLASSES, activation='softmax')
+    # Conv2 + MaxPool2
+    layers.Conv2D(256, kernel_size=(5, 5), strides=1, activation=activation_name, padding='same', kernel_initializer='he_normal'),
+    layers.MaxPooling2D(pool_size=(3, 3), strides=2),
+
+    # Conv3
+    layers.Conv2D(384, kernel_size=(3, 3), strides=1, activation=activation_name, padding='same', kernel_initializer='he_normal'),
+
+    # Conv4
+    layers.Conv2D(384, kernel_size=(3, 3), strides=1, activation=activation_name, padding='same', kernel_initializer='he_normal'),
+
+    # Conv5 + MaxPool3
+    layers.Conv2D(256, kernel_size=(3, 3), strides=1, activation=activation_name, padding='same', kernel_initializer='he_normal'),
+    layers.MaxPooling2D(pool_size=(3, 3), strides=2),
+
+    # Flatten
+    layers.Flatten(),
+
+    # FC1
+    layers.Dense(4096, activation=activation_name, kernel_initializer='he_normal'),
+    layers.Dropout(0.5),
+
+    # FC2
+    layers.Dense(4096, activation=activation_name, kernel_initializer='he_normal'),
+    layers.Dropout(0.5),
+
+    # FC3 (Output layer)
+    layers.Dense(NUM_CLASSES, activation='softmax')
 ])
 
 model.summary()  
@@ -72,21 +86,23 @@ for lr in learning_rates:
             val_ds = val_ds.prefetch(tf.data.AUTOTUNE)
             
             # 각 반복마다 새로운 모델 생성
+            # TODO Grid Search 조건에 추가한 모델 정의
             model = models.Sequential([
-                # TODO 여기에도 같은 모델 넣어주기, grid search 조건 추가
-                # ex) Simple CNN
-                # layers.Conv2D(32, (3, 3), activation=activation_name, input_shape=(INPUT_SIZE, INPUT_SIZE, 1), kernel_initializer='he_normal'), 
-                # layers.MaxPooling2D((2, 2)),
-                # layers.Conv2D(64, (3, 3), activation=activation_name, kernel_initializer='he_normal'),
-                # layers.MaxPooling2D((2, 2)),
-                # layers.Conv2D(128, (3, 3), activation=activation_name, kernel_initializer='he_normal'),
-                # layers.MaxPooling2D((2, 2)),
-                # layers.Flatten(),
-                # layers.Dense(128, activation=activation_name, kernel_initializer='he_normal'),
-                # layers.Dropout(0.5),
-                # layers.Dense(NUM_CLASSES, activation='softmax')
+                layers.Conv2D(96, kernel_size=(11, 11), strides=4, activation=activation_name, input_shape=(INPUT_SIZE, INPUT_SIZE, 1), kernel_initializer='he_normal'),
+                layers.MaxPooling2D(pool_size=(3, 3), strides=2),
+                layers.Conv2D(256, kernel_size=(5, 5), strides=1, activation=activation_name, padding='same', kernel_initializer='he_normal'),
+                layers.MaxPooling2D(pool_size=(3, 3), strides=2),
+                layers.Conv2D(384, kernel_size=(3, 3), strides=1, activation=activation_name, padding='same', kernel_initializer='he_normal'),
+                layers.Conv2D(384, kernel_size=(3, 3), strides=1, activation=activation_name, padding='same', kernel_initializer='he_normal'),
+                layers.Conv2D(256, kernel_size=(3, 3), strides=1, activation=activation_name, padding='same', kernel_initializer='he_normal'),
+                layers.MaxPooling2D(pool_size=(3, 3), strides=2),
+                layers.Flatten(),
+                layers.Dense(4096, activation=activation_name, kernel_initializer='he_normal'),
+                layers.Dropout(0.5),
+                layers.Dense(4096, activation=activation_name, kernel_initializer='he_normal'),
+                layers.Dropout(0.5),
+                layers.Dense(NUM_CLASSES, activation='softmax')
             ])
-            
             # optimizer 설정
             if opt_name == 'adam':
                 optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
