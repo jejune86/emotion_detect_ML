@@ -10,8 +10,6 @@ from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDis
 from data_loader import load_train_data
 from data_loader import NUM_CLASSES, DEFAULT_SIZE
 from tensorflow.python.client import device_lib
-from sklearn.metrics import classification_report
-import pandas as pd
 os.environ["CUDA_VISIBLE_DEVICES"] = "0" #주석 풀어서 gpu 사용
 
 INPUT_SIZE = DEFAULT_SIZE    #TODO 모델에 따라 INPUT_SIZE 조정
@@ -93,7 +91,7 @@ for lr in learning_rates:
                 layers.Dense(NUM_CLASSES, activation='softmax')
             ])
             
-             # optimizer 설정
+            # optimizer 설정
             if opt_name == 'adam':
                 optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
             else:
@@ -157,50 +155,20 @@ plt.legend()
 plt.grid(True)
 plt.show()
 
-# Classification Report 생성 및 시각화
-report_dict = classification_report(y_true, y_pred, target_names=classes, output_dict=True)
-df = pd.DataFrame(report_dict).transpose()
-
-# 테이블 시각화
-plt.figure(figsize=(12, 8))
-plt.axis('off')
-table = plt.table(cellText=df.values.round(3),
-                 rowLabels=df.index,
-                 colLabels=df.columns,
-                 cellLoc='center',
-                 loc='center',
-                 bbox=[0.1, 0, 0.9, 1])
-
-# 테이블 스타일 조정
-table.auto_set_font_size(False)
-table.set_fontsize(9)
-table.scale(1.2, 1.8)
-
-plt.title('Classification Report', pad=20, size=15)
-plt.tight_layout()
-plt.savefig('classification_report_table.png', dpi=300, bbox_inches='tight')
-plt.show()
-
 # Confusion Matrix 계산을 위한 수정
 y_true = []
 y_pred = []
 
+validation_dataset = validation_dataset.batch(BATCH_SIZE)
 # 전체 validation 데이터셋에서 예측값과 실제값 수집
 for images, labels in validation_dataset:
-    # 예측
-    predictions = best_model.predict(images, batch_size=BATCH_SIZE)
-    
-    # 예측값과 실제값을 리스트에 추가
+    predictions = best_model.predict(images)
     y_pred.extend(np.argmax(predictions, axis=1))
-    y_true.extend(np.argmax(labels, axis=1))
+    y_true.extend(labels.numpy())
 
-# 혼동 행렬 (Confusion Matrix) 계산
 cm = confusion_matrix(y_true, y_pred)
 
-# Confusion Matrix 디스플레이
-disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=classes)
+disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=range(NUM_CLASSES))
 disp.plot(cmap=plt.cm.Blues)
 plt.title('Confusion Matrix')
 plt.show()
-
-
