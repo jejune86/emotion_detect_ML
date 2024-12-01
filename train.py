@@ -30,20 +30,22 @@ train_dataset, validation_dataset = load_train_data(img_size=INPUT_SIZE, gray=Tr
 # TODO 모델에 따라 추가적인 preprocessing 필요한 경우 있음, data_loader.py에 가서 추가적인 전처리 필요 
 # define the image shape for the input layer
 # EfficientNetB3 기본 모델 불러오기
-base_model = tf.keras.applications.EfficientNetB3(
-    include_top=False,
-    weights='imagenet',
-    input_shape=(INPUT_SIZE, INPUT_SIZE, 3),
-    pooling='avg'
-)
+input_shape=(INPUT_SIZE, INPUT_SIZE, 3)
+batch_size = BATCH_SIZE
 
-# 전이학습을 위해 기존 가중치를 고정
-base_model.trainable = False
-
+model_name='EfficientNetB3'
+base_model=tf.keras.applications.efficientnet.EfficientNetB3(
+                                                            include_top=False, 
+                                                            weights="imagenet",
+                                                            input_shape=input_shape, 
+                                                            pooling='max'
+                                                            ) 
+base_model.trainable=True
 model = models.Sequential([
     base_model,
+    layers.BatchNormalization(),
     layers.Dense(512, activation='relu'),
-    layers.Dropout(0.3),
+    layers.Dropout(0.5),
     layers.Dense(256, activation='relu'),
     layers.Dropout(0.3),
     layers.Dense(NUM_CLASSES, activation='softmax')
@@ -69,12 +71,7 @@ for lr in learning_rates:
             
             # 각 반복마다 새로운 모델 생성
             model = models.Sequential([
-                    base_model,
-                    layers.Dense(512, activation='relu'),
-                    layers.Dropout(0.3),
-                    layers.Dense(256, activation='relu'),
-                    layers.Dropout(0.3),
-                    layers.Dense(NUM_CLASSES, activation='softmax')
+                
             ])
             
             # optimizer 설정
