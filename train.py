@@ -41,23 +41,11 @@ base_model = tf.keras.applications.EfficientNetB3(
 base_model.trainable = False
 
 model = models.Sequential([
-    # 입력 이미지 전처리를 위한 레이어
-    layers.Input(shape=(INPUT_SIZE, INPUT_SIZE, 3)),
-    layers.experimental.preprocessing.Rescaling(1./255),
-    
-    # EfficientNetB3 기본 모델
     base_model,
-    
-    # 추가적인 분류 레이어들
     layers.Dense(512, activation='relu'),
-    layers.BatchNormalization(),
-    layers.Dropout(0.5),
-    
-    layers.Dense(256, activation='relu'),
-    layers.BatchNormalization(),
     layers.Dropout(0.3),
-    
-    # 출력 레이어
+    layers.Dense(256, activation='relu'),
+    layers.Dropout(0.3),
     layers.Dense(NUM_CLASSES, activation='softmax')
 ])
 model.summary()  
@@ -81,23 +69,12 @@ for lr in learning_rates:
             
             # 각 반복마다 새로운 모델 생성
             model = models.Sequential([
-                layers.Input(shape=(INPUT_SIZE, INPUT_SIZE, 3)),
-                layers.experimental.preprocessing.Rescaling(1./255),
-                
-                # EfficientNetB3 기본 모델
-                base_model,
-                
-                # 추가적인 분류 레이어들
-                layers.Dense(512, activation='relu'),
-                layers.BatchNormalization(),
-                layers.Dropout(0.5),
-                
-                layers.Dense(256, activation='relu'),
-                layers.BatchNormalization(),
-                layers.Dropout(0.3),
-                
-                # 출력 레이어
-                layers.Dense(NUM_CLASSES, activation='softmax')
+                    base_model,
+                    layers.Dense(512, activation='relu'),
+                    layers.Dropout(0.3),
+                    layers.Dense(256, activation='relu'),
+                    layers.Dropout(0.3),
+                    layers.Dense(NUM_CLASSES, activation='softmax')
             ])
             
             # optimizer 설정
