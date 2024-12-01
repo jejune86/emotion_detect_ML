@@ -71,7 +71,15 @@ for lr in learning_rates:
             
             # 각 반복마다 새로운 모델 생성
             model = models.Sequential([
-                
+                base_model,
+                layers.BatchNormalization(),
+                layers.Dense(512, activation=activation_name, 
+                kernel_initializer='he_normal' if activation_name == 'relu' else 'glorot_uniform'),
+                layers.Dropout(0.5),
+                layers.Dense(256, activation=activation_name,
+                kernel_initializer='he_normal' if activation_name == 'relu' else 'glorot_uniform'),
+                layers.Dropout(0.3),
+                layers.Dense(NUM_CLASSES, activation='softmax')
             ])
             
             # optimizer 설정
