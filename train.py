@@ -29,27 +29,37 @@ train_dataset, validation_dataset = load_train_data(img_size=INPUT_SIZE, gray=Tr
 
 # TODO 모델에 따라 추가적인 preprocessing 필요한 경우 있음, data_loader.py에 가서 추가적인 전처리 필요 
 # define the image shape for the input layer
-input_shape = (INPUT_SIZE, INPUT_SIZE, 3)
-batch_size = BATCH_SIZE
-epochs = EPOCHS
-ask_epoch = 60
-model_name='EfficientNetB3'
-base_model=tf.keras.applications.efficientnet.EfficientNetB3(
-                                                            include_top=False, 
-                                                            weights="imagenet",
-                                                            input_shape=input_shape, 
-                                                            pooling='max'
-                                                            ) 
+# EfficientNetB3 기본 모델 불러오기
+base_model = tf.keras.applications.EfficientNetB3(
+    include_top=False,
+    weights='imagenet',
+    input_shape=(INPUT_SIZE, INPUT_SIZE, 3),
+    pooling='avg'
+)
 
-# 모델 정의
-base_model.trainable = True
+# 전이학습을 위해 기존 가중치를 고정
+base_model.trainable = False
+
 model = models.Sequential([
+    # 입력 이미지 전처리를 위한 레이어
+    layers.Input(shape=(INPUT_SIZE, INPUT_SIZE, 3)),
+    layers.experimental.preprocessing.Rescaling(1./255),
+    
+    # EfficientNetB3 기본 모델
     base_model,
-    layers.Dense(256, activation='relu'),
+    
+    # 추가적인 분류 레이어들
+    layers.Dense(512, activation='relu'),
+    layers.BatchNormalization(),
     layers.Dropout(0.5),
+    
+    layers.Dense(256, activation='relu'),
+    layers.BatchNormalization(),
+    layers.Dropout(0.3),
+    
+    # 출력 레이어
     layers.Dense(NUM_CLASSES, activation='softmax')
 ])
-
 model.summary()  
 
 best_val_accuracy = 0
@@ -71,9 +81,23 @@ for lr in learning_rates:
             
             # 각 반복마다 새로운 모델 생성
             model = models.Sequential([
+                # 입력 이미지 전처리를 위한 레이어
+                layers.Input(shape=(INPUT_SIZE, INPUT_SIZE, 3)),
+                layers.experimental.preprocessing.Rescaling(1./255),
+                
+                # EfficientNetB3 기본 모델
                 base_model,
-                layers.Dense(256, activation='relu'),
+                
+                # 추가적인 분류 레이어들
+                layers.Dense(512, activation='relu'),
+                layers.BatchNormalization(),
                 layers.Dropout(0.5),
+                
+                layers.Dense(256, activation='relu'),
+                layers.BatchNormalization(),
+                layers.Dropout(0.3),
+                
+                # 출력 레이어
                 layers.Dense(NUM_CLASSES, activation='softmax')
             ])
             
