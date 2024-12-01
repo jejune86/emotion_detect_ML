@@ -27,25 +27,24 @@ activation_functions = ['relu', 'elu'] #TODO activation function에 따라 kerne
 # Data Load
 train_dataset, validation_dataset = load_train_data(img_size=INPUT_SIZE, gray=True, normalization=True, flatten=False)
 
-
 # TODO 모델에 따라 추가적인 preprocessing 필요한 경우 있음, data_loader.py에 가서 추가적인 전처리 필요 
+# define the image shape for the input layer
+input_shape = (INPUT_SIZE, INPUT_SIZE, 3)
+batch_size = BATCH_SIZE
+epochs = EPOCHS
+ask_epoch = 60
+model_name='EfficientNetB3'
+base_model=tf.keras.applications.efficientnet.EfficientNetB3(
+                                                            include_top=False, 
+                                                            weights="imagenet",
+                                                            input_shape=input_shape, 
+                                                            pooling='max'
+                                                            ) 
 
 # 모델 정의
+base_model.trainable = True
 model = models.Sequential([
-    layers.Input(shape=(INPUT_SIZE, INPUT_SIZE, 1)),  # 그레이스케일 이미지
-    layers.Conv2D(32, (3, 3), activation='relu', padding='same'),
-    layers.BatchNormalization(),
-    layers.MaxPooling2D((2, 2)),
-    
-    layers.Conv2D(64, (3, 3), activation='relu', padding='same'),
-    layers.BatchNormalization(),
-    layers.MaxPooling2D((2, 2)),
-    
-    layers.Conv2D(128, (3, 3), activation='relu', padding='same'),
-    layers.BatchNormalization(),
-    layers.MaxPooling2D((2, 2)),
-    
-    layers.Flatten(),
+    base_model,
     layers.Dense(256, activation='relu'),
     layers.Dropout(0.5),
     layers.Dense(NUM_CLASSES, activation='softmax')
@@ -72,20 +71,7 @@ for lr in learning_rates:
             
             # 각 반복마다 새로운 모델 생성
             model = models.Sequential([
-                layers.Input(shape=(INPUT_SIZE, INPUT_SIZE, 1)),  # 그레이스케일 이미지
-                layers.Conv2D(32, (3, 3), activation='relu', padding='same'),
-                layers.BatchNormalization(),
-                layers.MaxPooling2D((2, 2)),
-                
-                layers.Conv2D(64, (3, 3), activation='relu', padding='same'),
-                layers.BatchNormalization(),
-                layers.MaxPooling2D((2, 2)),
-                
-                layers.Conv2D(128, (3, 3), activation='relu', padding='same'),
-                layers.BatchNormalization(),
-                layers.MaxPooling2D((2, 2)),
-                
-                layers.Flatten(),
+                base_model,
                 layers.Dense(256, activation='relu'),
                 layers.Dropout(0.5),
                 layers.Dense(NUM_CLASSES, activation='softmax')
