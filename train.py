@@ -81,7 +81,6 @@ for lr in learning_rates:
             
             # 각 반복마다 새로운 모델 생성
             model = models.Sequential([
-                # 입력 이미지 전처리를 위한 레이어
                 layers.Input(shape=(INPUT_SIZE, INPUT_SIZE, 3)),
                 layers.experimental.preprocessing.Rescaling(1./255),
                 
