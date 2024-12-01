@@ -34,19 +34,18 @@ def create_alexnet(input_size, activation_name):
     return models.Sequential([
         layers.Conv2D(96, (11, 11), strides=(4, 4), activation=activation_name, input_shape=(input_size, input_size, 1), kernel_initializer='he_normal'),
         layers.BatchNormalization(),
-        layers.MaxPooling2D((3, 3), strides=(2, 2)),
+        layers.MaxPooling2D((3, 3), strides=(2, 2), padding='same'),  # padding='same'으로 수정
 
         layers.Conv2D(256, (5, 5), activation=activation_name, padding='same', kernel_initializer='he_normal'),
         layers.BatchNormalization(),
-        layers.MaxPooling2D((3, 3), strides=(2, 2)),
+        layers.MaxPooling2D((3, 3), strides=(2, 2), padding='same'),  # padding='same'으로 수정
 
         layers.Conv2D(384, (3, 3), activation=activation_name, padding='same', kernel_initializer='he_normal'),
         layers.Conv2D(384, (3, 3), activation=activation_name, padding='same', kernel_initializer='he_normal'),
         layers.Conv2D(256, (3, 3), activation=activation_name, padding='same', kernel_initializer='he_normal'),
-        layers.MaxPooling2D((3, 3), strides=(2, 2)),
+        layers.MaxPooling2D((3, 3), strides=(2, 2), padding='same'),  # padding='same'으로 수정
 
         layers.Flatten(),
-
         layers.Dense(4096, activation=activation_name, kernel_initializer='he_normal'),
         layers.Dropout(0.5),
         layers.Dense(4096, activation=activation_name, kernel_initializer='he_normal'),
@@ -54,6 +53,7 @@ def create_alexnet(input_size, activation_name):
 
         layers.Dense(NUM_CLASSES, activation='softmax')
     ])
+
 
 model = create_alexnet(INPUT_SIZE, 'relu')
 model.summary()  # 모델 구조 확인
