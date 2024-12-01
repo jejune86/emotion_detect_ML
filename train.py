@@ -30,32 +30,30 @@ train_dataset, validation_dataset = load_train_data(img_size=INPUT_SIZE, gray=Tr
 # TODO 모델에 따라 추가적인 preprocessing 필요한 경우 있음, data_loader.py에 가서 추가적인 전처리 필요 
 # define the image shape for the input layer
 # EfficientNetB3 기본 모델 불러오기
-base_model=tf.keras.applications.efficientnet.EfficientNetB3(
-                                                            include_top=False, 
-                                                            weights="imagenet",
-                                                            input_shape=[INPUT_SIZE, INPUT_SIZE, 3], 
-                                                            pooling='max'
-                                                            ) 
-base_model.trainable = True
+# EfficientNetB3 모델 정의 함수
+def build_model(input_size, num_classes):
+    base_model = tf.keras.applications.efficientnet.EfficientNetB3(
+        include_top=False,
+        weights="imagenet",
+        input_shape=(input_size, input_size, 3),
+        pooling="avg"
+    )
+    base_model.trainable = True  # 사전 학습된 모델 Fine-Tuning 가능
 
-# 모델 정의
-model = models.Sequential([
-    base_model,
-    tf.layers.BatchNormalization(axis=-1, momentum=0.99, epsilon = 0.001),
-    tf.layers.Dense(256, 
-                kernel_regularizer = tf.keras.regularizers.l2(0.016),
-                activity_regularizer=tf.keras.regularizers.l1(0.006),
-                bias_regularizer=tf.keras.regularizers.l1(0.006),
-                activation='relu',
-                name='dense_x'),
-    tf.layers.Dropout(rate=.4, 
-                    seed=123,
-                    name='dropout_x'),
-    tf.layers.Dense(NUM_CLASSES, 
-                activation='softmax',
-                name='dense_output'),
-])
-model.summary()  
+    # 추가 레이어 구성
+    model = models.Sequential([
+        base_model,
+        layers.BatchNormalization(),
+        layers.Dense(
+            256,
+            activation='relu',
+            kernel_initializer='he_normal',
+            kernel_regularizer=tf.keras.regularizers.l2(0.01)
+        ),
+        layers.Dropout(0.5),
+        layers.Dense(num_classes, activation='softmax')
+    ])
+    return model
 
 best_val_accuracy = 0
 best_model = None
@@ -75,22 +73,7 @@ for lr in learning_rates:
             val_ds = val_ds.prefetch(tf.data.AUTOTUNE)
             
             # 각 반복마다 새로운 모델 생성
-            model = models.Sequential([
-                base_model,
-                tf.layers.BatchNormalization(axis=-1, momentum=0.99, epsilon = 0.001),
-                tf.layers.Dense(256, 
-                kernel_regularizer = tf.keras.regularizers.l2(0.016),
-                activity_regularizer=tf.keras.regularizers.l1(0.006),
-                bias_regularizer=tf.keras.regularizers.l1(0.006),
-                activation='relu',
-                    name='dense_x'),
-                tf.layers.Dropout(rate=.4, 
-                                seed=123,
-                                name='dropout_x'),
-                tf.layers.Dense(NUM_CLASSES, 
-                        activation='softmax',
-                        name='dense_output'),
-            ])
+            model = build_model(INPUT_SIZE, NUM_CLASSES)
             
             # optimizer 설정
             if opt_name == 'adam':
