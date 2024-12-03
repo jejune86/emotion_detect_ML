@@ -47,7 +47,6 @@ BATCH_SIZE = 64
 learning_rates = [1e-4, 1e-3, 1e-2]
 optimizers = ['adam', 'sgd_momentum']
 activation_functions = ['relu', 'elu']
-dropout_rates = [0.3, 0.5]
 
 def residual_block(x, filters, kernel_size=3, stride=1, conv_shortcut=True, name=None, activation='relu'):
     shortcut = x
@@ -84,14 +83,14 @@ def residual_block(x, filters, kernel_size=3, stride=1, conv_shortcut=True, name
 
     return x
 
-def build_resnet(input_shape=(48, 48, 1), num_classes=7, dropout_rate=0.5, activation='relu'):
+def build_resnet(input_shape=(48, 48, 1), num_classes=7, activation='relu'):
     inputs = layers.Input(shape=input_shape)
-    x = inputs  # Reshape 제거
+    x = inputs
 
     x = layers.Conv2D(64, 7, strides=2, padding='same',
                      kernel_initializer='he_normal' if activation == 'relu' else 'glorot_uniform',
                      kernel_regularizer=l2(1e-4),
-                     name='conv1')(x)  # 'x'에 적용
+                     name='conv1')(x)
     x = layers.BatchNormalization(name='bn1')(x)
 
     if activation == 'relu':
@@ -110,8 +109,10 @@ def build_resnet(input_shape=(48, 48, 1), num_classes=7, dropout_rate=0.5, activ
     x = residual_block(x, 256, stride=2, name='block4a', activation=activation)
     x = residual_block(x, 256, name='block4b', activation=activation)
 
+    x = residual_block(x, 512, stride=2, name='block5a', activation=activation)
+    x = residual_block(x, 512, name='block5b', activation=activation)
+
     x = layers.GlobalAveragePooling2D(name='avg_pool')(x)
-    x = layers.Dropout(dropout_rate, name='dropout')(x)
     x = layers.Dense(num_classes, activation='softmax',
                     kernel_initializer='he_normal' if activation == 'relu' else 'glorot_uniform',
                     name='predictions')(x)
@@ -139,79 +140,73 @@ best_params = None
 for lr in learning_rates:
     for opt_name in optimizers:
         for activation_name in activation_functions:
-            for dropout_rate in dropout_rates:
-                try:
-                    print(f"\nTrying parameters: lr={lr}, optimizer={opt_name}, activation={activation_name}, dropout={dropout_rate}")
+            try:
+                print(f"\nTrying parameters: lr={lr}, optimizer={opt_name}, activation={activation_name}")
 
-                    # 모델 생성
-                    model = build_resnet(
-                        input_shape=(48, 48, 1),
-                        num_classes=NUM_CLASSES,
-                        dropout_rate=dropout_rate,
-                        activation=activation_name
-                    )
+                # 모델 생성
+                model = build_resnet(
+                    input_shape=(48, 48, 1),
+                    num_classes=NUM_CLASSES,
+                    activation=activation_name
+                )
 
-                    # 모델 요약 출력
-                    model.summary()
+                # optimizer 설정
+                if opt_name == 'adam':
+                    optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
+                elif opt_name == 'sgd_momentum':
+                    optimizer = tf.keras.optimizers.SGD(learning_rate=lr, momentum=0.9)
 
-                    # optimizer 설정
-                    if opt_name == 'adam':
-                        optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
-                    elif opt_name == 'sgd_momentum':
-                        optimizer = tf.keras.optimizers.SGD(learning_rate=lr, momentum=0.9)
+                # 모델 컴파일
+                model.compile(
+                    optimizer=optimizer,
+                    loss=tf.keras.losses.SparseCategoricalCrossentropy(),
+                    metrics=['sparse_categorical_accuracy', tf.keras.metrics.SparseTopKCategoricalAccuracy(k=2)]
+                )
 
-                    # 모델 컴파일
-                    model.compile(
-                        optimizer=optimizer,
-                        loss=tf.keras.losses.SparseCategoricalCrossentropy(),
-                        metrics=['sparse_categorical_accuracy', tf.keras.metrics.SparseTopKCategoricalAccuracy(k=2)]
-                    )
+                # 조기 종료 콜백
+                early_stopping = tf.keras.callbacks.EarlyStopping(
+                    monitor='val_sparse_categorical_accuracy',
+                    patience=5,
+                    restore_best_weights=True
+                )
 
-                    # 조기 종료 콜백
-                    early_stopping = tf.keras.callbacks.EarlyStopping(
-                        monitor='val_sparse_categorical_accuracy',
-                        patience=5,
-                        restore_best_weights=True
-                    )
+                # 학습
+                history = model.fit(
+                    train_ds,
+                    epochs=EPOCHS,
+                    validation_data=val_ds,
+                    callbacks=[early_stopping],
+                    verbose=1,
+                    shuffle=True
+                )
 
-                    # 학습
-                    history = model.fit(
-                        train_ds,
-                        epochs=EPOCHS,
-                        validation_data=val_ds,
-                        callbacks=[early_stopping],
-                        verbose=1,
-                        shuffle=True
-                    )
+                # 검증 정확도 평가
+                val_metrics = model.evaluate(val_ds)
+                val_accuracy = val_metrics[1]
 
-                    # 검증 정확도 평가
-                    val_metrics = model.evaluate(val_ds)
-                    val_accuracy = val_metrics[1]
+                print(f"Validation accuracy: {val_accuracy}")
 
-                    print(f"Validation accuracy: {val_accuracy}")
+                if best_val_accuracy is None or val_accuracy > best_val_accuracy:
+                    if best_model is not None:
+                        del best_model
+                    best_val_accuracy = val_accuracy
+                    best_model = model
+                    best_history = history.history.copy()
+                    best_params = {
+                        'learning_rate': lr,
+                        'optimizer': opt_name,
+                        'activation': activation_name
+                    }
+                else:
+                    del model
 
-                    if best_val_accuracy is None or val_accuracy > best_val_accuracy:
-                        if best_model is not None:
-                            del best_model
-                        best_val_accuracy = val_accuracy
-                        best_model = model
-                        best_history = history.history.copy()
-                        best_params = {
-                            'learning_rate': lr,
-                            'optimizer': opt_name,
-                            'activation': activation_name,
-                            'dropout_rate': dropout_rate
-                        }
-                    else:
-                        del model
+                # 메모리 정리
+                tf.keras.backend.clear_session()
 
-                    # 메모리 정리
-                    tf.keras.backend.clear_session()
-
-                except Exception as e:
-                    print(f"Error in training with parameters: {lr}, {opt_name}, {activation_name}, {dropout_rate}")
-                    print(f"Error message: {str(e)}")
-                    continue
+            except Exception as e:
+                print(f"Error in training with parameters: {lr}, {opt_name}, {activation_name}")
+                print(f"Error message: {str(e)}")
+                continue
 
 # 결과 확인
 if best_history is None:
@@ -219,6 +214,7 @@ if best_history is None:
 else:
     print(f"\n최적 파라미터: {best_params}")
     print(f"최고 검증 정확도: {best_val_accuracy:.4f}")
+    best_model.summary()
 
     # 시각화
     plt.figure(figsize=(10, 6))
@@ -249,7 +245,7 @@ else:
     for images, labels in val_ds.take(-1):
         predictions = best_model.predict(images)
         y_pred.extend(np.argmax(predictions, axis=1))
-        y_true.extend(labels.numpy())  # 올바르게 정수 레이블 확장
+        y_true.extend(labels.numpy())
 
     cm = confusion_matrix(y_true, y_pred)
 
