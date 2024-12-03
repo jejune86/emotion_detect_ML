@@ -21,7 +21,7 @@ def load_train_data(
                      img_size=DEFAULT_SIZE,
                      gray=False,
                      normalization=True,
-                     flatten=False,
+                     batch_size = 64
                                                 ):
 
     # 전체 데이터셋을 로드
@@ -30,7 +30,7 @@ def load_train_data(
         labels="inferred",
         label_mode="int",
         image_size=(img_size, img_size),
-        color_mode="grayscale" if gray else "rgb",  # batch_size를 None으로 설정하여 전체 데이터셋을 한 번에 로드
+        color_mode="grayscale" if gray else "rgb",   # batch_size를 None으로 설정하여 전체 데이터셋을 한 번에 로드
         batch_size=32768,
         shuffle=False,
         seed=RANDOM_STATE,
@@ -48,12 +48,12 @@ def load_train_data(
     )
 
     def augment_image(images):
-        # 이미지 증강을 위한 레이어 정의
         augmentation_layers = tf.keras.Sequential([
             tf.keras.layers.RandomFlip("horizontal"),
             tf.keras.layers.RandomRotation(0.2),
-            tf.keras.layers.RandomZoom(0.2),
-            tf.keras.layers.RandomTranslation(0.1, 0.1)
+            tf.keras.layers.RandomTranslation(0.1, 0.1),
+            tf.keras.layers.RandomBrightness(0.2),  
+            tf.keras.layers.RandomContrast(0.2)     
         ])
         
         # 증강 적용
@@ -73,17 +73,15 @@ def load_train_data(
     y_train_other = y_train[other_indices]
 
     # disgusted 클래스는 3배로 증강
-    augmented_disgusted = np.concatenate([
-        augment_image(X_train_disgusted),
-        augment_image(X_train_disgusted),
-        augment_image(X_train_disgusted)
-    ])
+    augmented_disgusted = np.concatenate(
+        [augment_image(X_train_disgusted) for _ in range(18)]
+    )   
     
-    y_train_disgusted_aug = np.repeat(y_train_disgusted, 3)
+    y_train_disgusted_aug = np.repeat(y_train_disgusted, 18)
 
     # 다른 클래스들은 1번만 증강
     augmented_other = augment_image(X_train_other)
-    
+
     # 모든 데이터 합치기
     X_train_augmented = np.concatenate([
         X_train,
@@ -101,28 +99,11 @@ def load_train_data(
     def preprocess_image(image, label):
         if normalization:
             image = image / 255.0
-        if flatten:
-            image = image.flatten()
         return image, label
     
     
     X_train_augmented, y_train_augmented = preprocess_image(X_train_augmented, y_train_augmented)
     X_val, y_val = preprocess_image(X_val, y_val)
-
-
-    # # disgusted 클래스 증강 결과 시각화
-    # augmented_batch = augment_image(X_train_disgusted[:5])
-    # visualize_augmented_images(X_train_disgusted[:5], augmented_batch)
-    
-    # # 다른 클래스 증강 결과 시각화
-    # augmented_batch_other = augment_image(X_train_other[:5])
-    # visualize_augmented_images(X_train_other[:5], augmented_batch_other)
-    
-    
-    #TODO 추가적인 전처리 필요한 경우 여기에
-    # ex) DenseNet169 
-    # X_train_augmented = tf.keras.applications.densenet.preprocess_input(X_train_augmented)
-    # X_val = tf.keras.applications.densenet.preprocess_input(X_val)
     
     
     # 증강된 데이터를 tf.data.Dataset으로 변환
@@ -132,7 +113,38 @@ def load_train_data(
     # 성능 최적화를 위한 데이터 파이프라인 설정
     train_ds = train_ds.shuffle(buffer_size=len(X_train_augmented))
 
+    train_ds = train_ds.batch(batch_size)
+    train_ds = train_ds.prefetch(tf.data.AUTOTUNE)
+
+    val_ds = val_ds.batch(batch_size)
+    val_ds = val_ds.prefetch(tf.data.AUTOTUNE)
+
+
+
     return train_ds, val_ds
+
+# test_data load
+def load_test_data(img_size, gray, batch_size) :
+    test_dataset = tf.keras.preprocessing.image_dataset_from_directory(
+        test_path,
+        labels="inferred",
+        label_mode="int",
+        image_size=(img_size, img_size),
+        color_mode="grayscale" if gray else "rgb",   # batch_size를 None으로 설정하여 전체 데이터셋을 한 번에 로드
+        batch_size=batch_size,
+        shuffle=False,
+        seed=RANDOM_STATE,
+        class_names=classes
+    )
+    
+    def normalize(image, label):
+        image = tf.cast(image, tf.float32) / 255.0  # 0-255 값을 0-1 범위로 스케일링
+        return image, label
+
+    # Normalization 적용
+    test_dataset = test_dataset.map(normalize)
+    
+    return test_dataset
 
 
 
@@ -163,4 +175,24 @@ def visualize_augmented_images(original_images, augmented_images, num_samples=5)
         plt.axis('off')
     
     plt.tight_layout()
+    plt.show()
+    
+    
+    
+def visualize_data_distribution(y) :
+    unique_labels, label_counts = np.unique(y, return_counts=True)
+
+    # 클래스별 분포 출력
+    print("Class Distribution:")
+    for label, count in zip(unique_labels, label_counts):
+        print(f"Class {label}: {count} samples")
+
+    # 막대그래프로 시각화
+    plt.figure(figsize=(10, 6))
+    plt.bar(unique_labels, label_counts, color='skyblue', alpha=0.7)
+    plt.xlabel('Class Labels')
+    plt.ylabel('Number of Samples')
+    plt.title('Class Distribution in y_train_augmented')
+    plt.xticks(unique_labels)  # 클래스 라벨 표시
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.show()
