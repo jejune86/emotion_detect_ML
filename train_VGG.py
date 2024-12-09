@@ -16,6 +16,11 @@ INPUT_SIZE = DEFAULT_SIZE    #TODO 모델에 따라 INPUT_SIZE 조정
 EPOCHS = 10
 BATCH_SIZE = 64
 
+#최적 파라미터: {'learning_rate': 0.0001, 'optimizer': 'adam', 'activation': 'relu'}
+#최고 검증 정확도: 0.5731
+
+
+
 # 하이퍼파라미터 그리드
 #TODO 추가적으로 hyperparameter 조정, ex) dropout, neuron 수...
 learning_rates = [1e-4, 1e-3, 1e-2]  
