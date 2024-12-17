@@ -1,96 +1,108 @@
 import tensorflow as tf
 import numpy as np
-from data_loader import load_train_data, NUM_CLASSES, DEFAULT_SIZE
-from ResNet_train import build_resnet
-from train_VGG import build_vgg
-from train_DensNet import build_densenet
-from loss_function import focal_loss_sparse
+from data_loader import load_train_data, load_test_data, NUM_CLASSES, DEFAULT_SIZE, classes
+import tensorflow as tf
+import matplotlib.pyplot as plt
 import os
-
-# GPU 설정
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+import gc
+from sklearn.metrics import (
+    confusion_matrix, ConfusionMatrixDisplay, precision_score, recall_score, 
+    f1_score, roc_curve, auc, roc_auc_score
+)
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # GPU 설정
 
 # 하이퍼파라미터 설정
 INPUT_SIZE = DEFAULT_SIZE
 EPOCHS = 10
-BATCH_SIZE = 64
+BATCH_SIZE = 32
 
-def train_ensemble():
-    # 데이터 로드
-    train_dataset, validation_dataset = load_train_data(
-        img_size=INPUT_SIZE, 
-        gray=True, 
-        normalization=True, 
-        flatten=False
-    )
+# 데이터 로드
+#train_ds, val_ds = load_train_data(img_size=INPUT_SIZE, gray=False, batch_size=BATCH_SIZE)
+test_ds = load_test_data(img_size=INPUT_SIZE, gray=False, batch_size=BATCH_SIZE)
+# 개별 모델 로드
+dense_model = tf.keras.models.load_model('./models/DenseNet.keras')
+vgg_model = tf.keras.models.load_model('./models/VGG.keras')
+res_model = tf.keras.models.load_model('./models/ResNet.keras')
 
-    # 데이터셋 배치 설정
-    train_ds = train_dataset.batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
-    val_ds = validation_dataset.batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
+# Soft Voting 앙상블 함수
+def soft_voting_ensemble(models, dataset):
+    """
+    Soft Voting 앙상블 함수
+    Args:
+        models (list): 앙상블에 사용할 모델 리스트
+        dataset (tf.data.Dataset): 예측에 사용할 데이터셋
+    Returns:
+        y_true (list): 실제 레이블
+        y_pred (list): 앙상블 예측 결과
+    """
+    y_true = []
+    y_pred_probs = []
 
-    # ResNet 모델 생성 및 학습
-    resnet = build_resnet(
-        input_shape=(INPUT_SIZE, INPUT_SIZE, 1),
-        num_classes=NUM_CLASSES,
-        activation='elu'
-    )
-    resnet.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001),
-        loss=focal_loss_sparse(),
-        metrics=['accuracy']
-    )
-    resnet.fit(train_ds, epochs=EPOCHS, validation_data=val_ds, verbose=1)
-
-    # DenseNet 모델 생성 및 학습
-    densenet = build_densenet(
-        input_shape=(INPUT_SIZE, INPUT_SIZE, 1),
-        growth_rate=12,
-        activation='relu',
-        dropout_rate=0.2,
-        num_classes=NUM_CLASSES
-    )
-    densenet.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001),
-        loss=focal_loss_sparse(),
-        metrics=['accuracy']
-    )
-    densenet.fit(train_ds, epochs=EPOCHS, validation_data=val_ds, verbose=1)
-
-    # VGG 모델 생성 및 학습
-    vgg = build_vgg(
-        input_shape=(INPUT_SIZE, INPUT_SIZE, 1),
-        num_classes=NUM_CLASSES,
-        activation='relu'
-    )
-    vgg.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001),
-        loss=focal_loss_sparse(),
-        metrics=['accuracy']
-    )
-    vgg.fit(train_ds, epochs=EPOCHS, validation_data=val_ds, verbose=1)
-
-    # Soft Voting을 위한 앙상블 예측
-    def ensemble_predict(models, dataset):
-        predictions = []
-        for model in models:
-            pred = model.predict(dataset)
-            predictions.append(pred)
+    for images, labels in dataset:
+        # 각 모델의 예측 확률 수집
+        predictions = [model.predict(images, verbose=0) for model in models]
         
-        # 평균 계산 (Soft Voting)
-        ensemble_pred = np.mean(predictions, axis=0)
-        return ensemble_pred
+        # 평균 확률 계산 (Soft Voting)
+        avg_predictions = np.mean(predictions, axis=0)
+        y_pred_probs.extend(avg_predictions)
+        
+        # 실제 레이블 수집
+        y_true.extend(labels.numpy())
 
-    # 검증 데이터에 대한 앙상블 예측
-    models = [resnet, densenet, vgg]
-    ensemble_predictions = ensemble_predict(models, val_ds)
-    
-    # 앙상블 모델의 정확도 계산
-    y_true = np.concatenate([y for x, y in val_ds], axis=0)
-    y_pred = np.argmax(ensemble_predictions, axis=1)
-    ensemble_accuracy = np.mean(y_true == y_pred)
-    
-    print(f"\n앙상블 모델 검증 정확도: {ensemble_accuracy:.4f}")
+    # 최종 예측값: 확률에서 argmax로 클래스 결정
+    y_pred = np.argmax(y_pred_probs, axis=1)
+    return y_true, y_pred, np.array(y_pred_probs)
 
-if __name__ == "__main__":
-    train_ensemble()
+# Soft Voting 실행
+models = [dense_model, vgg_model, res_model]
+y_true, y_pred, y_pred_probs  = soft_voting_ensemble(models, test_ds)
+
+# Confusion Matrix 출력
+cm = confusion_matrix(y_true, y_pred)
+disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=range(NUM_CLASSES))
+disp.plot(cmap=plt.cm.Blues)
+plt.title('Confusion Matrix - Soft Voting Ensemble')
+plt.show()
+
+# 최종 검증 정확도 출력
+accuracy = np.mean(np.array(y_true) == np.array(y_pred))
+print(f"앙상블 검증 정확도: {accuracy:.4f}")
+
+#f1 core, precision, recall, auc curve
+# 정확도, Precision, Recall, F1 Score 계산
+precision = precision_score(y_true, y_pred, average='weighted')
+recall = recall_score(y_true, y_pred, average='weighted')
+f1 = f1_score(y_true, y_pred, average='weighted')
+
+print(f"앙상블 검증 정확도: {np.mean(np.array(y_true) == np.array(y_pred)):.4f}")
+print(f"Precision: {precision:.4f}")
+print(f"Recall: {recall:.4f}")
+print(f"F1 Score: {f1:.4f}")
+
+# AUC 및 ROC Curve 계산 (다중 클래스)
+# AUC는 One-vs-Rest 방식으로 계산
+y_true_one_hot = tf.keras.utils.to_categorical(y_true, num_classes=NUM_CLASSES)
+auc_scores = []
+plt.figure(figsize=(10, 8))
+
+for i, class_name in enumerate(classes):
+    # 각 클래스에 대한 ROC Curve
+    fpr, tpr, _ = roc_curve(y_true_one_hot[:, i], y_pred_probs[:, i])
+    roc_auc = auc(fpr, tpr)
+    auc_scores.append(roc_auc)
+
+    plt.plot(fpr, tpr, label=f'{class_name} (AUC = {roc_auc:.4f})')
+
+# 전체 AUC 평균 출력
+mean_auc = np.mean(auc_scores)
+print(f"Mean AUC: {mean_auc:.4f}")
+
+# ROC Curve 시각화
+plt.plot([0, 1], [0, 1], 'k--', lw=2)
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('ROC Curve - Soft Voting Ensemble')
+plt.legend(loc="lower right")
+plt.show()
