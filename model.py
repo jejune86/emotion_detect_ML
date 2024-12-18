@@ -2,6 +2,10 @@ import tensorflow as tf
 
 # TODO 돌릴 때 activaation function 최적으로, INPUT_SIZE 모델에 따라 조절
 
+INPUT_SIZE = 48
+NUM_CLASSES = 7
+
+
 #CNN [48, 48, 1]
 model = tf.keras.models.Sequential([
     tf.keras.layers.Conv2D(32, (3, 3), activation='relu', input_shape=(INPUT_SIZE, INPUT_SIZE, 1), kernel_initializer='he_normal'  ), 
@@ -21,6 +25,8 @@ model = tf.keras.models.Sequential([
     tf.keras.layers.Dense(NUM_CLASSES, activation='softmax')
 ])
 
+model.summary()
+
 #DenseNet [48, 48, 3]
 model = tf.keras.models.Sequential([
     tf.keras.applications.DenseNet169(
@@ -29,11 +35,11 @@ model = tf.keras.models.Sequential([
                                         weights="imagenet"
                                     ),
     tf.keras.layers.GlobalAveragePooling2D(),
-    tf.keras.layers.Dense(256, activation="relu", kernel_regularizer = tf.keras.regularizers.l2(0.01)),
+    tf.keras.layers.Dense(256, activation="relu", kernel_regularizer = tf.keras.regularizers.l2(0.05)),
     tf.keras.layers.Dropout(0.3),
-    tf.keras.layers.Dense(1024, activation="relu", kernel_regularizer = tf.keras.regularizers.l2(0.01)),
+    tf.keras.layers.Dense(1024, activation="relu", kernel_regularizer = tf.keras.regularizers.l2(0.05)),
     tf.keras.layers.Dropout(0.5),
-    tf.keras.layers.Dense(512, activation="relu", kernel_regularizer = tf.keras.regularizers.l2(0.01)),
+    tf.keras.layers.Dense(512, activation="relu", kernel_regularizer = tf.keras.regularizers.l2(0.05)),
     tf.keras.layers.Dropout(0.5),
     tf.keras.layers.Dense(NUM_CLASSES, activation="softmax", name="classification"),
     ])

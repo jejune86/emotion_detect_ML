@@ -16,9 +16,9 @@ EPOCHS = 15
 BATCH_SIZE = 64
 
 # 하이퍼파라미터 그리드
-learning_rates = [1e-3]  
-optimizers = ['adam']
-activation_functions = ['relu'] 
+learning_rates = [1e-4, 1e-3, 1e-2]  
+optimizers = ['adam', "RMSprop", "SGDmomentum"]
+activation_functions = ['relu', 'elu'] 
 
 # Data Load
 train_ds, val_ds = load_train_data(img_size=INPUT_SIZE, gray=True, batch_size = BATCH_SIZE)
@@ -44,18 +44,18 @@ for lr in learning_rates:
                 
                 # TODO 모델 집어 넣기
                 
-                tf.keras.layers.Conv2D(32, (3, 3), activation='relu', input_shape=(INPUT_SIZE, INPUT_SIZE, 1), kernel_initializer='he_normal'  ), 
+                tf.keras.layers.Conv2D(32, (3, 3), activation=activation_name, input_shape=(INPUT_SIZE, INPUT_SIZE, 1), kernel_initializer='he_normal'  ), 
                 tf.keras.layers.MaxPooling2D((2, 2)),
                 
-                tf.keras.layers.Conv2D(64, (3, 3), activation='relu', kernel_initializer='he_normal'),
+                tf.keras.layers.Conv2D(64, (3, 3), activation=activation_name, kernel_initializer='he_normal'),
                 tf.keras.layers.MaxPooling2D((2, 2)),
                 
-                tf.keras.layers.Conv2D(128, (3, 3), activation='relu', kernel_initializer='he_normal'),
+                tf.keras.layers.Conv2D(128, (3, 3), activation=activation_name, kernel_initializer='he_normal'),
                 tf.keras.layers.MaxPooling2D((2, 2)),
                 
                 tf.keras.layers.Flatten(),
                 
-                tf.keras.layers.Dense(128, activation='relu', kernel_initializer='he_normal'),
+                tf.keras.layers.Dense(128, activation=activation_name, kernel_initializer='he_normal'),
                 tf.keras.layers.Dropout(0.5),
                 
                 tf.keras.layers.Dense(NUM_CLASSES, activation='softmax')
@@ -64,8 +64,11 @@ for lr in learning_rates:
             # optimizer 설정
             if opt_name == 'adam':
                 optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
+            elif opt_name == 'RMSprop':
+                optimizer = tf.keras.optimizers.RMSprop(learning_rate=lr)
             else:
                 optimizer = tf.keras.optimizers.SGD(learning_rate=lr, momentum=0.9)
+
             
             # 모델 컴파일, 손실함수 설정
             model.compile(
@@ -76,9 +79,18 @@ for lr in learning_rates:
             
             early_stopping = tf.keras.callbacks.EarlyStopping(
                 monitor='val_accuracy',
-                patience=5,
+                patience=3,
                 restore_best_weights=True
             )
+            
+            model_checkpoint = tf.keras.callbacks.ModelCheckpoint(
+                './models/DenseNet.keras',  # 모델 저장 경로, model 이름으로
+                monitor='val_accuracy',
+                save_best_only=True,  # 가장 좋은 모델만 저장
+                mode='max',  # val_accuracy가 최대일 때 저장
+                verbose=1
+            )
+            
             
             history = model.fit(
                 train_ds,
